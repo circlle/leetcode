@@ -1,10 +1,15 @@
+/**
+ * 需要上传到日志中心的数据格式
+ */
+export type StackItem = {
+  line: number;
+  column: number;
+  filename: string;
+};
+export type StackList = StackItem[];
 export interface ErrorMessage {
   message: string;
-  stack: Array<{
-    line: number;
-    column: number;
-    filename: string;
-  }>;
+  stack: StackList;
 }
 
 /**
@@ -27,10 +32,10 @@ export function parseError(err: Error): ErrorMessage {
  * 获取 stack array 的方法。内部会自动判断浏览器类型
  * @param errorStack
  */
-function getStackArray(errorStack?: string): ErrorMessage['stack'] {
+export function getStackArray(errorStack?: string): StackList {
   if (errorStack === undefined) return [];
   const browserType = getBrowserType();
-  let stackArray: ErrorMessage['stack'];
+  let stackArray: StackList;
   switch (browserType) {
     case 'Chrome':
       stackArray = getChromeStackArray(errorStack);
@@ -45,23 +50,25 @@ function getStackArray(errorStack?: string): ErrorMessage['stack'] {
   return stackArray;
 }
 
+// ! 这里没有选择尽可能抽象getxxxStackArray的方法。因为考虑到 firefox 与 chrome 代码基本一致只是巧合，不能合并。
+// ! 选择抽象出很多小的函数，根据不同浏览器的实际情况去组合
+
 /**
  * 用来匹配一行 chrome error stack 的正则。使用捕获组自动匹配关键信息
  * eg.`at bar http://192.168.31.8:8000/c.js:2:9`
  */
-const chromeRegex = /at (\w+) (.+?):(\d+):(\d+)/;
-function getChromeStackArray(errorStack: string): ErrorMessage['stack'] {
-  let stack: ErrorMessage['stack'] = [];
+export const chromeRegex = /at (\w+ )?(.+):(\d+):(\d+)/;
+export function getChromeStackArray(errorStack: string): StackList {
+  let stack: StackList = [];
   try {
-    errorStack.split('\n').forEach((stackItem) => {
+    const stackItems = getStackItemStrings(errorStack);
+    stackItems.forEach((stackItem) => {
       const result = chromeRegex.exec(stackItem);
       if (result === null) return;
       const [, , filename, line, column] = result;
-      stack.push({
-        line: Number(line) || -1,
-        column: Number(column) || -1,
-        filename,
-      });
+      const maybeStackItem = getStackItem({ filename, line, column });
+      if (maybeStackItem === null) return;
+      stack.push(maybeStackItem);
     });
     return stack;
   } catch (error) {
@@ -73,23 +80,56 @@ function getChromeStackArray(errorStack: string): ErrorMessage['stack'] {
  * 用来匹配一行 firefox error stack 的正则。使用捕获组自动匹配关键信息
  * eg.`bar@http://192.168.31.8:8000/c.js:2:9`
  */
-const firefoxRegex = /(\w+)@(.+?):(\d):(\d+)/;
-function getFirefoxStackArray(errorStack: string): ErrorMessage['stack'] {
-  let stack: ErrorMessage['stack'] = [];
+export const firefoxRegex = /(\w+@)?(.+):(\d+):(\d+)/;
+export function getFirefoxStackArray(errorStack: string): StackList {
+  let stack: StackList = [];
   try {
-    errorStack.split('\n').forEach((stackItem) => {
+    const stackItems = getStackItemStrings(errorStack);
+    stackItems.forEach((stackItem) => {
       const result = firefoxRegex.exec(stackItem);
       if (result === null) return;
       const [, , filename, line, column] = result;
-      stack.push({
-        line: Number(line) || -1,
-        column: Number(column) || -1,
-        filename,
-      });
+      const maybeStackItem = getStackItem({ filename, line, column });
+      if (maybeStackItem === null) return;
+      stack.push(maybeStackItem);
     });
     return stack;
   } catch (error) {
     return [];
+  }
+}
+
+export interface GetStackItemOptions {
+  filename: string;
+  line: string;
+  column: string;
+}
+export function getStackItem({
+  filename,
+  line,
+  column,
+}: GetStackItemOptions): StackItem | null {
+  if (!needReportByFilename(filename)) return null;
+  return {
+    line: Number(line) || -1,
+    column: Number(column) || -1,
+    filename: filename?.trim() || '',
+  };
+}
+
+function getStackItemStrings(errorStack: string) {
+  return errorStack.split('\n').map((stack) => stack?.trim());
+}
+
+const validExts = ['js', 'html', 'htm'];
+function needReportByFilename(filename: string | undefined) {
+  if (typeof filename !== 'string') return false;
+  try {
+    const ext = filename.split('.').pop();
+    if (ext === undefined) return false;
+    return validExts.includes(ext);
+  } catch (error) {
+    return false;
   }
 }
 
@@ -116,7 +156,7 @@ export function checkIsFirefox(window: Window) {
 /**
  * * 有副作用。从 useragent 中获取浏览器信息
  */
-function getBrowserType(): BrowserType {
+export function getBrowserType(): BrowserType {
   if (typeof window === 'undefined') return 'unknown';
   const isChrome = checkIsChrome(window);
   const isFirefox = checkIsFirefox(window);

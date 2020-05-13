@@ -16,3 +16,9 @@ eslint + prettier
 ## precommit & commitlint
 
 ## CI. 运行 单元测试 与 lint
+
+
+
+
+## todo
+.prettierignore not working

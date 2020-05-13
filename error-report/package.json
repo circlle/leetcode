@@ -5,13 +5,14 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
+    "build": "tsc",
     "lint": "eslint src/*.ts",
     "pre-commit": "echo hahahabeforecommit"
   },
   "husky": {
     "hooks": {
       "pre-commit": "npm run test",
-      "commit-msg": "commitlint -E HISKY_GIT_PARAMS"
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
     }
   },
   "keywords": [],

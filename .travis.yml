@@ -2,9 +2,9 @@ language: node_js
 node_js:
   - 10
 before_script:
+  - cd error-report
   - npm install
 script:
-  - cd error-report
   - npm run test
   - npm run lint
   - npm run build

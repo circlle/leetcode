@@ -4,6 +4,7 @@ node_js:
 before_script:
   - npm install
 script:
+  - cd error-report
   - npm run test
   - npm run lint
   - npm run build
